@@ -81,8 +81,12 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\COrtakLib40\COrtakLib40\COrtakLib40.csproj">
+      <Project>{166120a4-93ee-4cee-bc1f-7da6c7eb0d8e}</Project>
+      <Name>COrtakLib40</Name>
+    </ProjectReference>
     <ProjectReference Include="..\COrtakLib\COrtakLib\COrtakLib.csproj">
-      <Project>{2709740A-BA5C-41ED-9FBB-25B944EE22AF}</Project>
+      <Project>{2709740a-ba5c-41ed-9fbb-25b944ee22af}</Project>
       <Name>COrtakLib</Name>
     </ProjectReference>
   </ItemGroup>
