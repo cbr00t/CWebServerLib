@@ -35,10 +35,9 @@ namespace CWebServerLib {
 
         bool serverStart(); bool serverStartEx(int port); bool serverStartEx2(string prefixesStr); bool serverStartEx3(ICollection<string> prefixes); bool serverStop();
         HttpListenerContext getContext(); IAsyncResult beginGetContext(); HttpListenerContext endGetContext(IAsyncResult ar); void signalContextReceivedEvent(HttpListenerContext context, bool isAsync);
-        bool sysConfig(IEnumerable<int> ports, IEnumerable<int> sslPorts); bool bindSSLEx(string portsStr, string sslPortsStr);
+		void initServer(); void Dispose(); bool sysConfig(IEnumerable<int> ports, IEnumerable<int> sslPorts);
         string readFromStream(Stream aStream, int length); byte[] readBytesFromStream(Stream aStream, int length); string readFromStreamToEnd(Stream aStream); string readLineFromStream(Stream aStream);
         void writeToStream(Stream aStream, string buffer); void writeBytesToStream(Stream aStream, byte[] buffer);
-        void initServer(); void Dispose();
     }
     #endregion
 
@@ -184,37 +183,33 @@ namespace CWebServerLib {
         #endregion
         #region Yardimci
         public bool sysConfig(IEnumerable<int> ports, IEnumerable<int> sslPorts) {
-            if (ports.bosMu()) return false;
-            var appID = AppID; var hash = SSLCertHash; var appFile = CPath.System32.pathCombine("netsh.exe").asFileInfo(); var result = true;
+            if (ports.bosMu()) { return false; }
+            var appID = AppID; var hash = SSLCertHash; var appFile = CPath.System32.pathCombine("cmd.exe").asFileInfo(); var result = true;
             Action<IEnumerable<int>, bool> islemBlock = (_ports, httpsmi) => {
                 var httpsPostfix = httpsmi ? "s" : "";
                 foreach (var port in _ports) {
                     /* var appArgs = string.Format( @"http add sslcert ipport=0.0.0.0:{0} certhash={1} appid={{{2}}}", port, hash, appID ); */
                     var argList = new CList<string>(
-                        string.Format(@"http delete urlacl url=http://+:{0}/", port), string.Format(@"http delete urlacl url=https://+:{0}/", port),
-                        string.Format(@"http add urlacl url=http{0}://+:{1}/ user=Everyone", httpsPostfix, port)
+                        string.Format(@"netsh http delete urlacl url=http://+:{0}/", port), string.Format(@"netsh http delete urlacl url=https://+:{0}/", port),
+                        string.Format(@"netsh http add urlacl url=http{0}://+:{1}/ user=Everyone", httpsPostfix, port)
                     );
                     if (appID.bosDegilMi() && hash.bosDegilMi()) {
                         argList.AddRange(
-                            string.Format(@"http delete sslcert ipport=+:{0}", port), string.Format(@"http delete sslcert ipport=0.0.0.0:{0}", port),
-                            string.Format(@"http add sslcert ipport=0.0.0.0:{0} appid={{{1}}} certhash={2} verifyclientcertrevocation=disable verifyrevocationwithcachedclientcertonly=disable usagecheck=disable", port, appID, hash)
+                            string.Format(@"netsh http delete sslcert ipport=+:{0}", port), string.Format(@"netsh http delete sslcert ipport=0.0.0.0:{0}", port),
+                            string.Format(@"netsh http add sslcert ipport=0.0.0.0:{0} appid={{{1}}} certhash={2} verifyclientcertrevocation=disable verifyrevocationwithcachedclientcertonly=disable usagecheck=disable", port, appID, hash)
                         );
                     }
-                    foreach (var appArgs in argList) {
-                        var _result = appFile.startProcessWith(arguments: appArgs, processWaitMSOrZero: 5000, isUseShellExecute: false, isCreateNoWindow: true, windowStyle: ProcessWindowStyle.Minimized);
+                    var cmd = "/c " + string.Join(" & ", argList.ToArray());
+					result = appFile.startProcessWith(arguments: cmd, processWaitMSOrZero: 8000, isUseShellExecute: false, isCreateNoWindow: false, windowStyle: ProcessWindowStyle.Minimized);
+					/*foreach (var appArgs in argList) {
+                        var _result = appFile.startProcessWith(arguments: cmd, processWaitMSOrZero: 8000, isUseShellExecute: false, isCreateNoWindow: false, windowStyle: ProcessWindowStyle.Minimized);
                         result = result && _result;
-                    }
-                }
+                    }*/
+				}
             };
-            if (ports.bosDegilMi()) islemBlock(ports, false);
-            if (sslPorts.bosDegilMi()) islemBlock(sslPorts, true);
+            if (ports.bosDegilMi()) { islemBlock(ports, false); }
+            if (sslPorts.bosDegilMi()) { islemBlock(sslPorts, true); }
             return result;
-        }
-        public bool bindSSLEx(string portsStr, string sslPortsStr) {
-            return sysConfig(
-                portsStr.bosMu() ? null : portsStr.asLines<int>(boslukAlmaMi: true, selectBlock: x => x.toInt32()).toSet(),
-                sslPortsStr.bosMu() ? null : sslPortsStr.asLines<int>(boslukAlmaMi: true, selectBlock: x => x.toInt32()).toSet()
-            );
         }
         #endregion
         #region Not Categorized
@@ -229,10 +224,7 @@ namespace CWebServerLib {
             }
             if (lastError != null) { throw lastError; }
         }
-        public void Dispose() {
-            if (server != null) { serverStop(); server.Close(); server = null; }
-            streamEncoding = null; serverPort = sslPort = 0;
-        }
+        public void Dispose() { if (server != null) { serverStop(); server.Close(); server = null; } streamEncoding = null; serverPort = sslPort = 0; }
         #endregion
     }
     #endregion
