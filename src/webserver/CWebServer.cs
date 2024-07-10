@@ -180,15 +180,41 @@ namespace CWebServerLib {
             if (ar != null) { /* isCompleted = ar.IsCompleted ;*/ isAsync = !ar.CompletedSynchronously; currentContext = endGetContext(ar); }
             if (currentContext != null) { signalContextReceivedEvent(currentContext, isAsync); }
         }
-        #endregion
-        #region Yardimci
-        public bool sysConfig(IEnumerable<int> ports, IEnumerable<int> sslPorts) {
+		#endregion
+		#region Yardimci
+		public bool sysConfig(IEnumerable<int> ports, IEnumerable<int> sslPorts) {
+            if (ports.bosMu()) { return false; }
+			var appID = AppID; var hash = SSLCertHash; var appFile = CPath.System32.pathCombine("netsh.exe").asFileInfo(); var result = true;
+			void islemBlock(IEnumerable<int> _ports, bool httpsmi) {
+				var httpsPostfix = httpsmi ? "s" : "";
+				foreach (var port in _ports) {
+					/* var appArgs = string.Format( @"http add sslcert ipport=0.0.0.0:{0} certhash={1} appid={{{2}}}", port, hash, appID ); */
+					var argList = new CList<string>(
+						string.Format(@"http delete urlacl url=http://+:{0}/", port), string.Format(@"http delete urlacl url=https://+:{0}/", port),
+						string.Format(@"http add urlacl url=http{0}://+:{1}/ user=Everyone", httpsPostfix, port)
+					);
+					if (appID.bosDegilMi() && hash.bosDegilMi()) {
+						argList.AddRange(
+							string.Format(@"http delete sslcert ipport=+:{0}", port), string.Format(@"http delete sslcert ipport=0.0.0.0:{0}", port),
+							string.Format(@"http add sslcert ipport=0.0.0.0:{0} appid={{{1}}} certhash={2} verifyclientcertrevocation=disable verifyrevocationwithcachedclientcertonly=disable usagecheck=disable", port, appID, hash)
+						);
+					}
+					foreach (var appArgs in argList) {
+						var _result = appFile.startProcessWith(arguments: appArgs, processWaitMSOrZero: 5000, isUseShellExecute: false, isCreateNoWindow: true, windowStyle: ProcessWindowStyle.Minimized);
+						result = result && _result;
+					}
+				}
+			}
+			if (ports.bosDegilMi()) { islemBlock(ports, false); }
+            if (sslPorts.bosDegilMi()) { islemBlock(sslPorts, true); }
+			return result;
+		}
+		/*public bool sysConfig(IEnumerable<int> ports, IEnumerable<int> sslPorts) {
             if (ports.bosMu()) { return false; }
             var appID = AppID; var hash = SSLCertHash; var appFile = CPath.System32.pathCombine("cmd.exe").asFileInfo(); var result = true;
             Action<IEnumerable<int>, bool> islemBlock = (_ports, httpsmi) => {
                 var httpsPostfix = httpsmi ? "s" : "";
                 foreach (var port in _ports) {
-                    /* var appArgs = string.Format( @"http add sslcert ipport=0.0.0.0:{0} certhash={1} appid={{{2}}}", port, hash, appID ); */
                     var argList = new CList<string>(
                         string.Format(@"netsh http delete urlacl url=http://+:{0}/", port), string.Format(@"netsh http delete urlacl url=https://+:{0}/", port),
                         string.Format(@"netsh http add urlacl url=http{0}://+:{1}/ user=Everyone", httpsPostfix, port)
@@ -201,19 +227,15 @@ namespace CWebServerLib {
                     }
                     var cmd = "/c " + string.Join(" & ", argList.ToArray());
 					result = appFile.startProcessWith(arguments: cmd, processWaitMSOrZero: 8000, isUseShellExecute: false, isCreateNoWindow: false, windowStyle: ProcessWindowStyle.Minimized);
-					/*foreach (var appArgs in argList) {
-                        var _result = appFile.startProcessWith(arguments: cmd, processWaitMSOrZero: 8000, isUseShellExecute: false, isCreateNoWindow: false, windowStyle: ProcessWindowStyle.Minimized);
-                        result = result && _result;
-                    }*/
 				}
             };
             if (ports.bosDegilMi()) { islemBlock(ports, false); }
             if (sslPorts.bosDegilMi()) { islemBlock(sslPorts, true); }
             return result;
-        }
-        #endregion
-        #region Not Categorized
-        public CWebServer() : base() { globalKey_sslCertHash = DefaultGlobalKey_SSLCertHash; serverPort = DefaultServerPort; initServer(); }
+        }*/
+		#endregion
+		#region Not Categorized
+		public CWebServer() : base() { globalKey_sslCertHash = DefaultGlobalKey_SSLCertHash; serverPort = DefaultServerPort; initServer(); }
         [STAThread()]
         public void initServer() {
             Exception lastError = null;
