@@ -46,7 +46,8 @@ namespace CWebServerLib {
     public class CWebServer : CObject40, ICWebServer, IDisposable {
         public const int DefaultServerPort = 8081, MSBufferSize = 512 * 1024, GZipBufferSize = 2 * 1024 * 1024;
         public const string Key_NOGZIP = "NOGZIP2", ContentType_FormData = "application/x-www-form-urlencoded";
-        public const string DefaultGlobalKey_SSLCertHash = "SSLCertHash"; protected string appID, sslCertHash, globalKey_sslCertHash; protected int serverPort, sslPort;
+        public const string DefaultGlobalKey_SSLCertHash = "SSLCertHash";
+        protected string appID, sslCertHash, globalKey_sslCertHash; protected int serverPort, sslPort;
         protected Encoding streamEncoding = Encoding.Default; protected HttpListener server; protected HttpListenerContext currentContext;
 
         #region Accessors
