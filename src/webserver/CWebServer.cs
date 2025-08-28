@@ -185,23 +185,30 @@ namespace CWebServerLib {
 		#region Yardimci
 		public bool sysConfig(IEnumerable<int> ports, IEnumerable<int> sslPorts) {
             if (ports.bosMu()) { return false; }
-			var appID = AppID; var hash = SSLCertHash; var appFile = CPath.System32.pathCombine("netsh.exe").asFileInfo(); var result = true;
+			var result = true; var appID = AppID; var hash = SSLCertHash;
+            var appFile = CPath.System32.pathCombine("netsh.exe").asFileInfo();
 			void islemBlock(IEnumerable<int> _ports, bool httpsmi) {
-				var httpsPostfix = httpsmi ? "s" : "";
+				var s = httpsmi ? "s" : "";
 				foreach (var port in _ports) {
-					/* var appArgs = string.Format( @"http add sslcert ipport=0.0.0.0:{0} certhash={1} appid={{{2}}}", port, hash, appID ); */
-					var argList = new CList<string>(
-						string.Format(@"http delete urlacl url=http://+:{0}/", port), string.Format(@"http delete urlacl url=https://+:{0}/", port),
-						string.Format(@"http add urlacl url=http{0}://+:{1}/ user=Everyone", httpsPostfix, port)
-					);
+                    /* var appArgs = string.Format( @"http add sslcert ipport=0.0.0.0:{0} certhash={1} appid={{{2}}}", port, hash, appID ); */
+                    var argList = new CList<string>(
+              $"http delete urlacl url=http{s}://+:{port}/",
+                        $"http delete urlacl url=http{s}://*:{port}/",
+                        $"http add urlacl url=http{s}://+:{port}/ user=Everyone"
+                    );
 					if (appID.bosDegilMi() && hash.bosDegilMi()) {
 						argList.AddRange(
-							string.Format(@"http delete sslcert ipport=+:{0}", port), string.Format(@"http delete sslcert ipport=0.0.0.0:{0}", port),
-							string.Format(@"http add sslcert ipport=0.0.0.0:{0} appid={{{1}}} certhash={2} verifyclientcertrevocation=disable verifyrevocationwithcachedclientcertonly=disable usagecheck=disable", port, appID, hash)
+							$"http delete sslcert ipport=+:{port}",
+                            $"http delete sslcert ipport=0.0.0.0:{port}",
+							$"http add sslcert ipport=0.0.0.0:{port} appid={{{appID}}} certhash={hash} verifyclientcertrevocation=disable" +
+                                $" verifyrevocationwithcachedclientcertonly=disable usagecheck=disable"
 						);
 					}
 					foreach (var appArgs in argList) {
-						var _result = appFile.startProcessWith(arguments: appArgs, processWaitMSOrZero: 5000, isUseShellExecute: false, isCreateNoWindow: true, windowStyle: ProcessWindowStyle.Minimized);
+						var _result = appFile.startProcessWith(
+                            appArgs, processWaitMSOrZero: 5000, isUseShellExecute: false,
+                            isCreateNoWindow: true, windowStyle: ProcessWindowStyle.Minimized
+                        );
 						result = result && _result;
 					}
 				}
@@ -210,44 +217,27 @@ namespace CWebServerLib {
             if (sslPorts.bosDegilMi()) { islemBlock(sslPorts, true); }
 			return result;
 		}
-		/*public bool sysConfig(IEnumerable<int> ports, IEnumerable<int> sslPorts) {
-            if (ports.bosMu()) { return false; }
-            var appID = AppID; var hash = SSLCertHash; var appFile = CPath.System32.pathCombine("cmd.exe").asFileInfo(); var result = true;
-            Action<IEnumerable<int>, bool> islemBlock = (_ports, httpsmi) => {
-                var httpsPostfix = httpsmi ? "s" : "";
-                foreach (var port in _ports) {
-                    var argList = new CList<string>(
-                        string.Format(@"netsh http delete urlacl url=http://+:{0}/", port), string.Format(@"netsh http delete urlacl url=https://+:{0}/", port),
-                        string.Format(@"netsh http add urlacl url=http{0}://+:{1}/ user=Everyone", httpsPostfix, port)
-                    );
-                    if (appID.bosDegilMi() && hash.bosDegilMi()) {
-                        argList.AddRange(
-                            string.Format(@"netsh http delete sslcert ipport=+:{0}", port), string.Format(@"netsh http delete sslcert ipport=0.0.0.0:{0}", port),
-                            string.Format(@"netsh http add sslcert ipport=0.0.0.0:{0} appid={{{1}}} certhash={2} verifyclientcertrevocation=disable verifyrevocationwithcachedclientcertonly=disable usagecheck=disable", port, appID, hash)
-                        );
-                    }
-                    var cmd = "/c " + string.Join(" & ", argList.ToArray());
-					result = appFile.startProcessWith(arguments: cmd, processWaitMSOrZero: 8000, isUseShellExecute: false, isCreateNoWindow: false, windowStyle: ProcessWindowStyle.Minimized);
-				}
-            };
-            if (ports.bosDegilMi()) { islemBlock(ports, false); }
-            if (sslPorts.bosDegilMi()) { islemBlock(sslPorts, true); }
-            return result;
-        }*/
-		#endregion
-		#region Not Categorized
-		public CWebServer() : base() { globalKey_sslCertHash = DefaultGlobalKey_SSLCertHash; serverPort = DefaultServerPort; initServer(); }
+        #endregion
+        #region Not Categorized
+        public CWebServer() : base() {
+            globalKey_sslCertHash = DefaultGlobalKey_SSLCertHash;
+            serverPort = DefaultServerPort;
+            initServer();
+        }
         [STAThread()]
         public void initServer() {
             Exception lastError = null;
             for (var i = 0; i < 4; i++) {
                 try { this.server = new HttpListener() { IgnoreWriteExceptions = true }; break; }
                 catch (ThreadAbortException) { Thread.ResetAbort(); return; } catch (ThreadInterruptedException) { return; }
-                catch (Exception ex) { lastError = ex; (500).millisecondsWait(); }
+                catch (Exception ex) { lastError = ex; 500.millisecondsWait(); }
             }
             if (lastError != null) { throw lastError; }
         }
-        public void Dispose() { if (server != null) { serverStop(); server.Close(); server = null; } streamEncoding = null; serverPort = sslPort = 0; }
+        public void Dispose() {
+            if (server != null) { serverStop(); server.Close(); server = null; }
+            streamEncoding = null; serverPort = sslPort = 0;
+        }
         #endregion
     }
     #endregion
