@@ -48,20 +48,30 @@ namespace CWebServerLib {
         public const string Key_NOGZIP = "NOGZIP2", ContentType_FormData = "application/x-www-form-urlencoded";
         public const string DefaultGlobalKey_SSLCertHash = "SSLCertHash";
         protected string appID, sslCertHash, globalKey_sslCertHash; protected int serverPort, sslPort;
-        protected Encoding streamEncoding = Encoding.Default; protected HttpListener server; protected HttpListenerContext currentContext;
+        protected Encoding streamEncoding = Encoding.Default;
+        protected HttpListener server; protected HttpListenerContext currentContext;
 
         #region Accessors
         public int ServerPort { get { return serverPort; } set { serverPort = value.emptyCoalesce(DefaultServerPort); } }
         public int SSLPort { get { return sslPort; } set { sslPort = value; } }
-        public Encoding StreamEncoding { get { return streamEncoding; } set { streamEncoding = (value ?? Encoding.Default); } }
-        public string StreamEncodingName { get { return (StreamEncoding == null ? null : StreamEncoding.WebName); } set { StreamEncoding = (value.bosMu() ? null : Encoding.GetEncoding(value)); } }
+        public Encoding StreamEncoding {
+            get => streamEncoding;
+            set => streamEncoding = (value ?? Encoding.Default);
+        }
+        public string StreamEncodingName {
+            get => StreamEncoding?.WebName;
+            set => StreamEncoding = (value.bosMu() ? null : Encoding.GetEncoding(value));
+        }
         public HttpListener Server { get { return server; } }
         public bool ServerIsListening { get { return Server.IsListening; } }
         public bool ServerIgnoresWriteExceptions { get { return Server.IgnoreWriteExceptions; } set { Server.IgnoreWriteExceptions = value; } }
         public bool UseGZip { get; set; }
         public string AppID {
             get {
-                if (appID == null) { appID = CGlobals.getAppID(Assembly.GetExecutingAssembly()).emptyCoalesceB(() => CGlobals.getAppID(Assembly.GetEntryAssembly())); }
+                if (appID == null) {
+                    appID = CGlobals.getAppID(Assembly.GetExecutingAssembly()).emptyCoalesceB(() =>
+                                CGlobals.getAppID(Assembly.GetEntryAssembly()));
+                }
                 return appID;
             }
         }
@@ -184,42 +194,70 @@ namespace CWebServerLib {
 		#endregion
 		#region Yardimci
 		public bool sysConfig(IEnumerable<int> ports, IEnumerable<int> sslPorts) {
-            if (ports.bosMu()) { return false; }
+			if (ports.bosMu()) { return false; }
 			var result = true; var appID = AppID; var hash = SSLCertHash;
-            var appFile = CPath.System32.pathCombine("netsh.exe").asFileInfo();
+			var appFile = CPath.System32.pathCombine("netsh.exe").asFileInfo();
 			void islemBlock(IEnumerable<int> _ports, bool httpsmi) {
 				var s = httpsmi ? "s" : "";
 				foreach (var port in _ports) {
-                    /* var appArgs = string.Format( @"http add sslcert ipport=0.0.0.0:{0} certhash={1} appid={{{2}}}", port, hash, appID ); */
-                    var argList = new CList<string>(
-              $"http delete urlacl url=http{s}://+:{port}/",
-                        $"http delete urlacl url=http{s}://*:{port}/",
-                        $"http add urlacl url=http{s}://+:{port}/ user=Everyone"
-                    );
+					var argList = new CList<string>(
+			  $"http delete urlacl url=http{s}://+:{port}/",
+						$"http delete urlacl url=http{s}://*:{port}/",
+						$"http add urlacl url=http{s}://+:{port}/ user=Everyone"
+					);
 					if (appID.bosDegilMi() && hash.bosDegilMi()) {
 						argList.AddRange(
 							$"http delete sslcert ipport=+:{port}",
-                            $"http delete sslcert ipport=0.0.0.0:{port}",
+							$"http delete sslcert ipport=0.0.0.0:{port}",
 							$"http add sslcert ipport=0.0.0.0:{port} appid={{{appID}}} certhash={hash} verifyclientcertrevocation=disable" +
-                                $" verifyrevocationwithcachedclientcertonly=disable usagecheck=disable"
+								$" verifyrevocationwithcachedclientcertonly=disable usagecheck=disable"
 						);
 					}
 					foreach (var appArgs in argList) {
 						var _result = appFile.startProcessWith(
-                            appArgs, processWaitMSOrZero: 5000, isUseShellExecute: false,
-                            isCreateNoWindow: true, windowStyle: ProcessWindowStyle.Minimized
-                        );
+							appArgs, processWaitMSOrZero: 5000, isUseShellExecute: false,
+							isCreateNoWindow: true, windowStyle: ProcessWindowStyle.Minimized
+						);
 						result = result && _result;
 					}
 				}
 			}
 			if (ports.bosDegilMi()) { islemBlock(ports, false); }
-            if (sslPorts.bosDegilMi()) { islemBlock(sslPorts, true); }
+			if (sslPorts.bosDegilMi()) { islemBlock(sslPorts, true); }
 			return result;
 		}
-        #endregion
-        #region Not Categorized
-        public CWebServer() : base() {
+		/*public bool sysConfig(IEnumerable<int> ports, IEnumerable<int> sslPorts) {
+            if (ports.bosMu()) { return false; }
+			var result = true; var appID = AppID; var hash = SSLCertHash;
+			void islemBlock(IEnumerable<int> _ports, bool httpsmi) {
+				var s = httpsmi ? "s" : "";
+				foreach (var port in _ports) {
+                    var argList = new CList<string>(
+              $"http delete urlacl url=http{s}://+:{port}/",
+                        $"@http delete urlacl url=http{s}://*:{port}/ > NUL",
+						$"@http delete urlacl url=http{s}://0.0.0.0:{port}/ > NUL",
+						$"http add urlacl url=http{s}://+:{port}/ user=Everyone"
+                    );
+					if (appID.bosDegilMi() && hash.bosDegilMi()) {
+						argList.AddRange(
+					$"@http delete sslcert ipport=+:{port} > NUL",
+                            $"@http delete sslcert ipport=*:{port} > NUL",
+							$"http delete sslcert ipport=0.0.0.0:{port}",
+							$"http add sslcert ipport=0.0.0.0:{port} appid={{{appID}}} certhash={hash} verifyclientcertrevocation=disable" +
+                                $" verifyrevocationwithcachedclientcertonly=disable usagecheck=disable"
+						);
+					}
+                    var cmd = string.Join(" & ", argList.Select(x => $@"netsh {x}"));
+                    cmd.shell(10_000, isCreateNoWindow: true);
+				}
+			}
+			if (ports.bosDegilMi()) { islemBlock(ports, false); }
+            if (sslPorts.bosDegilMi()) { islemBlock(sslPorts, true); }
+			return result;
+		}*/
+		#endregion
+		#region Not Categorized
+		public CWebServer() : base() {
             globalKey_sslCertHash = DefaultGlobalKey_SSLCertHash;
             serverPort = DefaultServerPort;
             initServer();
@@ -227,8 +265,12 @@ namespace CWebServerLib {
         [STAThread()]
         public void initServer() {
             Exception lastError = null;
-            for (var i = 0; i < 4; i++) {
-                try { this.server = new HttpListener() { IgnoreWriteExceptions = true }; break; }
+            for (var i = 0; i < 5; i++) {
+                try { server.Abort(); } catch (Exception) { }
+				try { this.server?.Stop(); } catch (Exception) { }
+                100.millisecondsWait();
+				// try { this.server.Close(); } catch (Exception) { }
+				try { this.server = new HttpListener() { IgnoreWriteExceptions = true }; break; }
                 catch (ThreadAbortException) { Thread.ResetAbort(); return; } catch (ThreadInterruptedException) { return; }
                 catch (Exception ex) { lastError = ex; 500.millisecondsWait(); }
             }
