@@ -266,7 +266,7 @@ namespace CWebServerLib {
         public void initServer() {
             Exception lastError = null;
             for (var i = 0; i < 5; i++) {
-                try { server.Abort(); } catch (Exception) { }
+                try { server?.Abort(); } catch (Exception) { }
 				try { this.server?.Stop(); } catch (Exception) { }
                 100.millisecondsWait();
 				// try { this.server.Close(); } catch (Exception) { }
