@@ -49,7 +49,7 @@ namespace CWebServerLib {
     public class CWebServer : CObject40, ICWebServer, IDisposable {
         public const int DefaultServerPort = 8081, MSBufferSize = 512 * 1024, GZipBufferSize = 2 * 1024 * 1024;
         public const string Key_NOGZIP = "NOGZIP2", ContentType_FormData = "application/x-www-form-urlencoded";
-        public const string Key_UseSSL = "VIOWS_SSL", Key_CN = "cloud.vioyazilim.com.tr", Key_SSLCertHash = "SSLCertHash";
+        public const string Key_UseSSL = "VIOWS_SSL", Key_CN = "SSLCN", DefCN = "cloud.vioyazilim.com.tr", Key_SSLCertHash = "SSLCertHash";
         protected bool? useSSL;
         protected string appID, certCN, sslCertHash;
         protected int serverPort, sslPort;
@@ -94,7 +94,7 @@ namespace CWebServerLib {
             get {
                 if (certCN == null) {
                     certCN = CGlobals.g.VioGlobals.atIfAbsent(Key_CN, () => CGlobals.g.VioGlobalsOrtak.atIfAbsent(Key_CN));
-                    if (certCN.bosMu()) { certCN = Key_CN; }
+                    if (certCN.bosMu()) { certCN = DefCN; }
                 }
 				return certCN;
             }
