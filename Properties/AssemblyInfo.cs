@@ -11,7 +11,7 @@ using System.Security;
 [assembly: AssemblyConfiguration( "" )]
 [assembly: AssemblyCompany( "Özer DURMAZ" )]
 [assembly: AssemblyProduct( "CWebServerLib" )]
-[assembly: AssemblyCopyright( "Copyright 2002-2024 © Özer DURMAZ" )]
+[assembly: AssemblyCopyright( "Copyright 2002-2025 © Özer DURMAZ" )]
 [assembly: AssemblyTrademark( "" )]
 [assembly: AssemblyCulture( "" )]
 
@@ -33,8 +33,8 @@ using System.Security;
 // You can specify all the values or you can default the Build and Revision Numbers 
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
-[assembly: AssemblyVersion("1.1.2.12")]
-[assembly: AssemblyFileVersion("1.1.2.12")]
+[assembly: AssemblyVersion("1.1.3.2")]
+[assembly: AssemblyFileVersion("1.1.3.2")]
 
 [assembly: SecurityCritical] [assembly: AllowPartiallyTrustedCallers] [assembly: SecurityRules(SecurityRuleSet.Level1, SkipVerificationInFullTrust = true)]
 

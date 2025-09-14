@@ -11,6 +11,8 @@ using System.Reflection;
 using System.Net.Sockets;
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Security.Cryptography.X509Certificates;
+using System.Threading.Tasks;
 
 namespace CWebServerLib {
     #region Delegates
@@ -28,8 +30,9 @@ namespace CWebServerLib {
         bool ServerIgnoresWriteExceptions { get; set; }
         bool UseGZip { get; set; }
         string AppID { get; }
+        string CertCN { get; set; }
+        bool UseSSL { get; set; }
         string SSLCertHash { get; set; }
-        string GlobalKey_SSLCertHash { get; set; }
         HttpListenerContext CurrentContext { get; }
         event HttpListenerContextReceivedProc ContextReceived;
 
@@ -46,8 +49,10 @@ namespace CWebServerLib {
     public class CWebServer : CObject40, ICWebServer, IDisposable {
         public const int DefaultServerPort = 8081, MSBufferSize = 512 * 1024, GZipBufferSize = 2 * 1024 * 1024;
         public const string Key_NOGZIP = "NOGZIP2", ContentType_FormData = "application/x-www-form-urlencoded";
-        public const string DefaultGlobalKey_SSLCertHash = "SSLCertHash";
-        protected string appID, sslCertHash, globalKey_sslCertHash; protected int serverPort, sslPort;
+        public const string Key_UseSSL = "VIOWS_SSL", Key_CN = "cloud.vioyazilim.com.tr", Key_SSLCertHash = "SSLCertHash";
+        protected bool? useSSL;
+        protected string appID, certCN, sslCertHash;
+        protected int serverPort, sslPort;
         protected Encoding streamEncoding = Encoding.Default;
         protected HttpListener server; protected HttpListenerContext currentContext;
 
@@ -65,8 +70,18 @@ namespace CWebServerLib {
         public HttpListener Server { get { return server; } }
         public bool ServerIsListening { get { return Server.IsListening; } }
         public bool ServerIgnoresWriteExceptions { get { return Server.IgnoreWriteExceptions; } set { Server.IgnoreWriteExceptions = value; } }
-        public bool UseGZip { get; set; }
-        public string AppID {
+        public bool UseGZip { get; set; } = false;
+        public bool UseSSL {
+            get {
+                if (!useSSL.HasValue) {
+					this.useSSL = CGlobals.g.VioGlobals.atIfAbsent(Key_UseSSL).toBool() ||
+									    CGlobals.g.VioGlobalsOrtak.atIfAbsent(Key_UseSSL).toBool();
+				}
+                return useSSL.Value;
+            }
+            set => useSSL = value;
+        }
+		public string AppID {
             get {
                 if (appID == null) {
                     appID = CGlobals.getAppID(Assembly.GetExecutingAssembly()).emptyCoalesceB(() =>
@@ -75,23 +90,44 @@ namespace CWebServerLib {
                 return appID;
             }
         }
-        public string SSLCertHash {
+        public string CertCN {
+            get {
+                if (certCN == null) {
+                    certCN = CGlobals.g.VioGlobals.atIfAbsent(Key_CN, () => CGlobals.g.VioGlobalsOrtak.atIfAbsent(Key_CN));
+                    if (certCN.bosMu()) { certCN = Key_CN; }
+                }
+				return certCN;
+            }
+            set => certCN = value;
+        }
+		public string SSLCertHash {
             get {
                 if (sslCertHash == null) {
-                    var value = CGlobals.g.VioGlobals.atIfAbsent(GlobalKey_SSLCertHash, () => CGlobals.g.VioGlobalsOrtak.atIfAbsent(GlobalKey_SSLCertHash));
+                    var cn = this.CertCN;
+					if (cn.bosDegilMi()) {
+						var store = new X509Store(StoreName.My, StoreLocation.LocalMachine);
+						store.Open(OpenFlags.ReadOnly);
+						var cert = store.Certificates
+							.Find(X509FindType.FindBySubjectName, cn, false)
+							.OfType<X509Certificate2>()
+							.OrderByDescending(c => c.NotBefore)
+							.FirstOrDefault();
+						store.Close();
+                        sslCertHash = cert.Thumbprint?.Replace(" ", "");
+					}
+					/*var value = CGlobals.g.VioGlobals.atIfAbsent(GlobalKey_SSLCertHash, () => CGlobals.g.VioGlobalsOrtak.atIfAbsent(GlobalKey_SSLCertHash));
                     if (value.bosDegilMi()) {
                         var sb = new StringBuilder(value.Length);
                         if (value.bosDegilMi()) {
                             foreach (var ch in value) { if ((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F')) { sb.Append(ch); } }
                             sslCertHash = sb.ToString();
                         }
-                    }
-                }
+                    }*/
+				}
                 return sslCertHash;
             }
-            set { sslCertHash = value; }
+            set => sslCertHash = value;
         }
-        public string GlobalKey_SSLCertHash { get { return globalKey_sslCertHash; } set { globalKey_sslCertHash = value; } }
         public HttpListenerContext CurrentContext { get { return currentContext; } }
         #endregion
 
@@ -113,21 +149,30 @@ namespace CWebServerLib {
             if (ServerIsListening) { return false; }
             var ports = new HashSet<int>(); var sslPorts = new HashSet<int>();
             if (prefixes.bosDegilMi()) {
+                if (UseSSL && prefixes.FirstOrDefault(x => x.StartsWith("https://")) == null) {
+                    if (SSLPort.bosMu() && ServerPort > 0) { SSLPort = ServerPort + 20; }
+                    if (SSLPort.bosDegilMi()) { prefixes.Add($"https://+:{SSLPort}/"); }
+				}
                 server.Prefixes.Clear();
                 foreach (var _prefix in prefixes) {
                     var prefix = _prefix; if (prefix.bosDegilMi()) { prefix = prefix.Trim(); }
                     if (prefix.bosMu()) { continue; }
                     if (!prefix.EndsWith("/")) { prefix += "/"; }
-                    prefix = prefix.Replace("0.0.0.0", "+"); prefix = prefix.Replace("*", "+");
+                    prefix = prefix.Replace("0.0.0.0", "+").Replace("*", "+");
                     server.Prefixes.Add(prefix);
-                    var httpsmi = prefix.StartsWith("https://"); var parts = prefix.Split(new char[] { ':' }, StringSplitOptions.RemoveEmptyEntries);
+                    var httpsmi = prefix.StartsWith("https://");
+                    var parts = prefix.Split(new char[] { ':' }, StringSplitOptions.RemoveEmptyEntries);
                     if (parts.Length > 1) {
-                        var part = parts.last(); if (part.EndsWith("/")) { part = part.Substring(0, part.Length - 1); }
-                        var port = part.toInt32(); if (httpsmi) { sslPorts.Add(port); } else { ports.Add(port); }
+                        var part = parts.last();
+                        if (part.EndsWith("/")) { part = part.Substring(0, part.Length - 1); }
+                        var port = part.toInt32();
+                        if (httpsmi) { sslPorts.Add(port); } else { ports.Add(port); }
                     }
                 }
             }
-            sysConfig(ports, sslPorts); server.Start(); return true;
+            sysConfig(ports, sslPorts);
+            server.Start();
+            return true;
         }
         public bool serverStop() {
             if (!ServerIsListening) { return false; }
@@ -163,7 +208,7 @@ namespace CWebServerLib {
                 if (gSrm != null) { gSrm.Close(); }
                 if (CurrentContext != null && useGZipFlag) {
                     var resp = CurrentContext.Response; resp.SendChunked = false; if (!resp.SendChunked) { resp.ContentLength64 = ms.Length; }
-                    CurrentContext.Response.AddHeader("Content-Encoding", "gzip");
+					resp.AddHeader("Content-Encoding", "gzip");
                 }
                 ms.Position = 0; ms.CopyTo(aStream, useGZipFlag ? GZipBufferSize : MSBufferSize);
             }
@@ -178,8 +223,9 @@ namespace CWebServerLib {
                 using (var sw = new BinaryWriter((Stream)gSrm ?? (Stream)ms, StreamEncoding ?? Encoding.Default, true)) { sw.Write(buffer); }
                 if (gSrm != null) { gSrm.Close(); }
                 if (CurrentContext != null && useGZipFlag) {
-                    var resp = CurrentContext.Response; resp.SendChunked = false; if (!resp.SendChunked) { resp.ContentLength64 = ms.Length; }
-                    CurrentContext.Response.AddHeader("Content-Encoding", "gzip");
+                    var resp = CurrentContext.Response; resp.SendChunked = false;
+                    if (!resp.SendChunked) { resp.ContentLength64 = ms.Length; }
+					resp.AddHeader("Content-Encoding", "gzip");
                 }
                 ms.Position = 0; ms.CopyTo(aStream, useGZipFlag ? GZipBufferSize : MSBufferSize);
             }
@@ -195,7 +241,7 @@ namespace CWebServerLib {
 		#region Yardimci
 		public bool sysConfig(IEnumerable<int> ports, IEnumerable<int> sslPorts) {
 			if (ports.bosMu()) { return false; }
-			var result = true; var appID = AppID; var hash = SSLCertHash;
+			var result = true; var appID = AppID; var hash = UseSSL ? SSLCertHash : null;
 			var appFile = CPath.System32.pathCombine("netsh.exe").asFileInfo();
 			void islemBlock(IEnumerable<int> _ports, bool httpsmi) {
 				var s = httpsmi ? "s" : "";
@@ -222,8 +268,10 @@ namespace CWebServerLib {
 					}
 				}
 			}
-			if (ports.bosDegilMi()) { islemBlock(ports, false); }
-			if (sslPorts.bosDegilMi()) { islemBlock(sslPorts, true); }
+            Parallel.Invoke(new ParallelOptions() { TaskScheduler = TaskScheduler.Default, MaxDegreeOfParallelism = 2 },
+                () => { if (ports.bosDegilMi()) { islemBlock(ports, false); } },
+				() => { if (sslPorts.bosDegilMi()) { islemBlock(sslPorts, true); } }
+            );
 			return result;
 		}
 		/*public bool sysConfig(IEnumerable<int> ports, IEnumerable<int> sslPorts) {
@@ -258,7 +306,6 @@ namespace CWebServerLib {
 		#endregion
 		#region Not Categorized
 		public CWebServer() : base() {
-            globalKey_sslCertHash = DefaultGlobalKey_SSLCertHash;
             serverPort = DefaultServerPort;
             initServer();
         }
@@ -279,7 +326,8 @@ namespace CWebServerLib {
         public void Dispose() {
             if (server != null) { serverStop(); server.Close(); server = null; }
             streamEncoding = null; serverPort = sslPort = 0;
-        }
+            useSSL = null;  sslCertHash = certCN = appID = null;
+		}
         #endregion
     }
     #endregion
